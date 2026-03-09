@@ -6,16 +6,16 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || 
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Mock calendar events (will be replaced with real Google/Outlook API)
-function getMockEvents(date: string) {
-  const baseDate = new Date(date);
+// Mock calendar events
+function getMockEvents(dateStr) {
+  const baseDate = new Date(dateStr);
   return [
     {
       id: '1',
       title: 'Team Standup',
       description: 'Daily standup meeting',
-      start: new Date(baseDate.setHours(9, 0, 0, 0)).toISOString(),
-      end: new Date(baseDate.setHours(9, 30, 0, 0)).toISOString(),
+      start: new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 9, 0).toISOString(),
+      end: new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 9, 30).toISOString(),
       provider: 'google',
       color: '#4285f4'
     },
@@ -23,19 +23,10 @@ function getMockEvents(date: string) {
       id: '2',
       title: 'Lunch with Client',
       description: 'Meeting at restaurant',
-      start: new Date(baseDate.setHours(12, 0, 0, 0)).toISOString(),
-      end: new Date(baseDate.setHours(13, 30, 0, 0)).toISOString(),
+      start: new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 12, 0).toISOString(),
+      end: new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 13, 30).toISOString(),
       provider: 'outlook',
       color: '#0078d4'
-    },
-    {
-      id: '3',
-      title: 'Project Review',
-      description: 'Review project progress',
-      start: new Date(baseDate.setHours(15, 0, 0, 0)).toISOString(),
-      end: new Date(baseDate.setHours(16, 0, 0, 0)).toISOString(),
-      provider: 'google',
-      color: '#4285f4'
     }
   ];
 }
@@ -56,7 +47,7 @@ export default async function handler(req, res) {
   }
   
   const userId = authHeader.replace('Bearer ', '');
-  
+
   // Verify user exists
   const { data: user } = await supabase
     .from('users')
@@ -68,25 +59,13 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Invalid token' });
   }
 
-  // GET /api/calendar
   if (req.method === 'GET') {
-    // Get date from query param or use today
-    const url = new URL(req.url || '', 'http://localhost');
-    const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
+    // Get date from query param
+    const url = req.url || '';
+    const dateMatch = url.match(/date=([^&]+)/);
+    const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0];
     
-    // Check if user has connected accounts
-    const { data: accounts } = await supabase
-      .from('connected_accounts')
-      .select('provider')
-      .eq('user_id', userId);
-    
-    // If no accounts, return mock data for demo
-    // In production, this would fetch from Google/Outlook APIs
-    if (!accounts || accounts.length === 0) {
-      return res.status(200).json(getMockEvents(date));
-    }
-    
-    // For now, return mock data (real implementation would call Google/Outlook APIs)
+    // Return mock events for demo
     return res.status(200).json(getMockEvents(date));
   }
 
