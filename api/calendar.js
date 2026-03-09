@@ -6,29 +6,82 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || 
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Mock calendar events
+// Mock events (fallback)
 function getMockEvents(dateStr) {
   const baseDate = new Date(dateStr);
   return [
     {
-      id: '1',
+      id: 'mock-1',
       title: 'Team Standup',
-      description: 'Daily standup meeting',
+      description: 'Sample meeting',
       start: new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 9, 0).toISOString(),
       end: new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 9, 30).toISOString(),
       provider: 'google',
       color: '#4285f4'
-    },
-    {
-      id: '2',
-      title: 'Lunch with Client',
-      description: 'Meeting at restaurant',
-      start: new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 12, 0).toISOString(),
-      end: new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 13, 30).toISOString(),
-      provider: 'outlook',
-      color: '#0078d4'
     }
   ];
+}
+
+// Fetch from Google Calendar
+async function getGoogleCalendarEvents(accessToken, dateStr) {
+  const startDate = new Date(dateStr);
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(dateStr);
+  endDate.setHours(23, 59, 59, 999);
+
+  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startDate.toISOString()}&timeMax=${endDate.toISOString()}&singleEvents=true&orderBy=startTime`;
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  if (!response.ok) {
+    console.error('Google Calendar API error:', await response.text());
+    return null;
+  }
+
+  const data = await response.json();
+  
+  return (data.items || []).map(event => ({
+    id: event.id,
+    title: event.summary || 'Untitled',
+    description: event.description || '',
+    start: event.start.dateTime || event.start.date,
+    end: event.end.dateTime || event.end.date,
+    provider: 'google',
+    color: '#4285f4'
+  }));
+}
+
+// Fetch from Outlook Calendar
+async function getOutlookCalendarEvents(accessToken, dateStr) {
+  const startDate = new Date(dateStr);
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(dateStr);
+  endDate.setHours(23, 59, 59, 999);
+
+  const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${startDate.toISOString()}&endDateTime=${endDate.toISOString()}`;
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  if (!response.ok) {
+    console.error('Outlook Calendar API error:', await response.text());
+    return null;
+  }
+
+  const data = await response.json();
+  
+  return (data.value || []).map(event => ({
+    id: event.id,
+    title: event.subject || 'Untitled',
+    description: event.bodyPreview || '',
+    start: event.start.dateTime,
+    end: event.end.dateTime,
+    provider: 'outlook',
+    color: '#0078d4'
+  }));
 }
 
 export default async function handler(req, res) {
@@ -40,7 +93,6 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Get user from token
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     return res.status(401).json({ error: 'Authorization required' });
@@ -48,7 +100,6 @@ export default async function handler(req, res) {
   
   const userId = authHeader.replace('Bearer ', '');
 
-  // Verify user exists
   const { data: user } = await supabase
     .from('users')
     .select('id')
@@ -60,13 +111,42 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    // Get date from query param
     const url = req.url || '';
     const dateMatch = url.match(/date=([^&]+)/);
     const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0];
     
-    // Return mock events for demo
-    return res.status(200).json(getMockEvents(date));
+    // Get connected accounts
+    const { data: accounts } = await supabase
+      .from('connected_accounts')
+      .select('provider, access_token, refresh_token')
+      .eq('user_id', userId);
+    
+    if (!accounts || accounts.length === 0) {
+      return res.status(200).json(getMockEvents(date));
+    }
+
+    // Fetch from each provider
+    const allEvents = [];
+    
+    for (const account of accounts) {
+      if (account.provider === 'google' && account.access_token) {
+        const events = await getGoogleCalendarEvents(account.access_token, date);
+        if (events) allEvents.push(...events);
+      } else if (account.provider === 'microsoft' && account.access_token) {
+        const events = await getOutlookCalendarEvents(account.access_token, date);
+        if (events) allEvents.push(...events);
+      }
+    }
+
+    // If no real events, fall back to mock
+    if (allEvents.length === 0) {
+      return res.status(200).json(getMockEvents(date));
+    }
+
+    // Sort by start time
+    allEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    
+    return res.status(200).json(allEvents);
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
