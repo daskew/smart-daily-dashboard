@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useConnectedAccounts } from './hooks/useConnectedAccounts';
 import CalendarDay from './components/Calendar';
@@ -83,11 +83,52 @@ function AuthPage() {
 
 function Dashboard() {
   const { user, logout } = useAuth();
-  const { accounts, loading: accountsLoading, addAccount, removeAccount } = useConnectedAccounts();
+  const { accounts, loading: accountsLoading, addAccount, removeAccount, refetch } = useConnectedAccounts();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'calendar' | 'emails' | 'todos'>('calendar');
 
+  // Handle OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get('connected');
+    const error = params.get('error');
+    
+    if (connected === 'google') {
+      window.history.replaceState({}, '', '/');
+      refetch();
+      alert('Google account connected!');
+    }
+    
+    if (error) {
+      window.history.replaceState({}, '', '/');
+      alert('Error: ' + error);
+    }
+  }, []);
+
   async function handleConnect(provider: string) {
+    if (provider === 'google') {
+      const token = localStorage.getItem('dashboard-token');
+      if (!token) {
+        alert('Please log in first');
+        return;
+      }
+      
+      try {
+        const res = await fetch(`/api/auth/google?token=${token}`);
+        const data = await res.json();
+        
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert(data.error || 'Failed to connect');
+        }
+      } catch (err) {
+        alert('Failed to connect Google');
+      }
+      return;
+    }
+    
+    // Microsoft placeholder
     const email = prompt(`Enter your ${provider} email:`);
     if (!email) return;
     
