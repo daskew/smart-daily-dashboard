@@ -33,6 +33,11 @@ export default async function handler(req, res) {
   // Extract the action (e.g., /register -> register, /login -> login)
   const action = fullPath.split('/').filter(Boolean).pop() || '';
   
+  // Base route
+  if (action === 'auth' || action === '') {
+    return res.status(200).json({ message: 'Auth API. Use /register, /login, /me, /logout' });
+  }
+  
   // Parse body for POST
   let body = {};
   if (req.method === 'POST') {
