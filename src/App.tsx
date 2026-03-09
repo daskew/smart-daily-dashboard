@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useConnectedAccounts } from './hooks/useConnectedAccounts';
+import { useCalendars } from './hooks/useCalendars';
 import CalendarDay from './components/Calendar';
 import './App.css';
 
@@ -83,7 +84,8 @@ function AuthPage() {
 
 function Dashboard() {
   const { user, logout } = useAuth();
-  const { accounts, loading: accountsLoading, addAccount, removeAccount, refetch } = useConnectedAccounts();
+  const { accounts, loading: accountsLoading, addAccount, removeAccount, refetch: refetchAccounts } = useConnectedAccounts();
+  const { calendars, toggleCalendar, refetch: refetchCalendars } = useCalendars();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'calendar' | 'emails' | 'todos'>('calendar');
 
@@ -95,7 +97,8 @@ function Dashboard() {
     
     if (connected === 'google') {
       window.history.replaceState({}, '', '/');
-      refetch();
+      refetchAccounts();
+      refetchCalendars();
       alert('Google account connected!');
     }
     
@@ -194,7 +197,12 @@ function Dashboard() {
             </div>
 
             {activeTab === 'calendar' && (
-              <CalendarDay date={selectedDate} onDateChange={setSelectedDate} />
+              <CalendarDay 
+                date={selectedDate} 
+                onDateChange={setSelectedDate}
+                calendars={calendars}
+                onToggleCalendar={toggleCalendar}
+              />
             )}
 
             {activeTab === 'emails' && (

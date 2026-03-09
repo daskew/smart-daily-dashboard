@@ -9,9 +9,17 @@ interface CalendarEvent {
   end: string;
   provider: string;
   color: string;
+  calendarId?: string;
 }
 
-export function useCalendar(date: string) {
+interface Calendar {
+  id: string;
+  summary: string;
+  backgroundColor: string;
+  enabled?: boolean;
+}
+
+export function useCalendar(date: string, enabledCalendarIds: string[]) {
   const { getToken } = useAuth();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +27,7 @@ export function useCalendar(date: string) {
 
   useEffect(() => {
     fetchEvents();
-  }, [date]);
+  }, [date, enabledCalendarIds.join(',')]);
 
   async function fetchEvents() {
     setLoading(true);
@@ -27,7 +35,12 @@ export function useCalendar(date: string) {
     
     try {
       const token = getToken();
-      const res = await fetch(`/api/calendar?date=${date}`, {
+      const params = new URLSearchParams({ date });
+      if (enabledCalendarIds.length > 0) {
+        params.set('calendars', enabledCalendarIds.join(','));
+      }
+      
+      const res = await fetch(`/api/calendar?${params}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -47,8 +60,19 @@ export function useCalendar(date: string) {
   return { events, loading, error, refetch: fetchEvents };
 }
 
-function CalendarDay({ date, onDateChange }: { date: string; onDateChange: (d: string) => void }) {
-  const { events, loading, error } = useCalendar(date);
+function CalendarDay({ 
+  date, 
+  onDateChange,
+  calendars,
+  onToggleCalendar
+}: { 
+  date: string; 
+  onDateChange: (d: string) => void;
+  calendars: Calendar[];
+  onToggleCalendar: (id: string) => void;
+}) {
+  const enabledIds = calendars.filter(c => c.enabled).map(c => c.id);
+  const { events, loading, error } = useCalendar(date, enabledIds);
 
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
@@ -86,6 +110,31 @@ function CalendarDay({ date, onDateChange }: { date: string; onDateChange: (d: s
         </div>
         <button onClick={handleNextDay} className="nav-btn">Next →</button>
       </div>
+
+      {/* Calendar List */}
+      {calendars.length > 0 && (
+        <div className="calendar-toggles">
+          <h4>Calendars</h4>
+          <div className="calendar-list">
+            {calendars.map(cal => (
+              <label key={cal.id} className="calendar-toggle">
+                <input
+                  type="checkbox"
+                  checked={cal.enabled ?? true}
+                  onChange={() => onToggleCalendar(cal.id)}
+                />
+                <span 
+                  className="calendar-color" 
+                  style={{ backgroundColor: cal.backgroundColor }}
+                />
+                <span className="calendar-name">
+                  {cal.summary} {cal.id === 'primary' && '(Primary)'}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="placeholder">Loading events...</p>
