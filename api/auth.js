@@ -28,12 +28,13 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const method = req.method;
-  const path = req.url || '';
+  // Get the path without /api/auth prefix
+  const path = req.url || '/';
+  const action = path.replace(/^\//, '').replace(/\/$/, '');
   
   // Parse body for POST
   let body = {};
-  if (method === 'POST') {
+  if (req.method === 'POST') {
     try {
       body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     } catch (e) {
@@ -41,8 +42,8 @@ export default async function handler(req, res) {
     }
   }
 
-  // Route: /api/auth/register
-  if (method === 'POST' && path.includes('/register')) {
+  // Route: register
+  if (req.method === 'POST' && action === 'register') {
     const { email, password, name } = body;
     
     if (!email || !password || !name) {
@@ -87,8 +88,8 @@ export default async function handler(req, res) {
     });
   }
 
-  // Route: /api/auth/login
-  if (method === 'POST' && path.includes('/login')) {
+  // Route: login
+  if (req.method === 'POST' && action === 'login') {
     const { email, password } = body;
     
     if (!email || !password) {
@@ -118,8 +119,8 @@ export default async function handler(req, res) {
     });
   }
 
-  // Route: /api/auth/me
-  if (method === 'GET' && path.includes('/me')) {
+  // Route: me
+  if (req.method === 'GET' && action === 'me') {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return res.status(401).json({ error: 'No token provided' });
@@ -140,10 +141,10 @@ export default async function handler(req, res) {
     return res.status(200).json({ user });
   }
 
-  // Route: /api/auth/logout
-  if (method === 'POST' && path.includes('/logout')) {
+  // Route: logout
+  if (req.method === 'POST' && action === 'logout') {
     return res.status(200).json({ message: 'Logged out successfully' });
   }
 
-  return res.status(404).json({ error: 'Not found' });
+  return res.status(404).json({ error: 'Not found', action });
 }
