@@ -111,7 +111,7 @@ function Dashboard() {
   );
 }
 
-function App() {
+function AppContent() {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -122,9 +122,13 @@ function App() {
     );
   }
 
+  return user ? <Dashboard /> : <AuthPage />;
+}
+
+function App() {
   return (
     <AuthProvider>
-      {user ? <Dashboard /> : <AuthPage />}
+      <AppContent />
     </AuthProvider>
   );
 }
