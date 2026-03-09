@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useConnectedAccounts } from './hooks/useConnectedAccounts';
+import CalendarDay from './components/Calendar';
 import './App.css';
 
 function AuthPage() {
@@ -82,10 +83,11 @@ function AuthPage() {
 
 function Dashboard() {
   const { user, logout } = useAuth();
-  const { accounts, loading, addAccount, removeAccount } = useConnectedAccounts();
+  const { accounts, loading: accountsLoading, addAccount, removeAccount } = useConnectedAccounts();
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [activeTab, setActiveTab] = useState<'calendar' | 'emails' | 'todos'>('calendar');
 
   async function handleConnect(provider: string) {
-    // For now, add a placeholder account (OAuth will come later)
     const email = prompt(`Enter your ${provider} email:`);
     if (!email) return;
     
@@ -122,21 +124,58 @@ function Dashboard() {
       </header>
       
       <main className="main">
-        <div className="section">
-          <h2>Your Day at a Glance</h2>
-          {accounts.length === 0 ? (
+        {accounts.length === 0 ? (
+          <div className="section">
+            <h2>Welcome!</h2>
             <p className="placeholder">Connect your Google or Outlook account to see your calendar, emails, and todos.</p>
-          ) : (
-            <div className="day-view">
-              <p className="placeholder">Your connected accounts are loaded. Calendar, email, and todo views coming soon!</p>
+          </div>
+        ) : (
+          <>
+            <div className="tabs">
+              <button 
+                className={`tab ${activeTab === 'calendar' ? 'active' : ''}`}
+                onClick={() => setActiveTab('calendar')}
+              >
+                📅 Calendar
+              </button>
+              <button 
+                className={`tab ${activeTab === 'emails' ? 'active' : ''}`}
+                onClick={() => setActiveTab('emails')}
+              >
+                📧 Emails
+              </button>
+              <button 
+                className={`tab ${activeTab === 'todos' ? 'active' : ''}`}
+                onClick={() => setActiveTab('todos')}
+              >
+                ✅ Todos
+              </button>
             </div>
-          )}
-        </div>
+
+            {activeTab === 'calendar' && (
+              <CalendarDay date={selectedDate} onDateChange={setSelectedDate} />
+            )}
+
+            {activeTab === 'emails' && (
+              <div className="section">
+                <h2>Emails</h2>
+                <p className="placeholder">Email view coming soon!</p>
+              </div>
+            )}
+
+            {activeTab === 'todos' && (
+              <div className="section">
+                <h2>Todos</h2>
+                <p className="placeholder">Todo view coming soon!</p>
+              </div>
+            )}
+          </>
+        )}
         
         <div className="accounts-section">
           <h3>Connected Accounts</h3>
           
-          {loading ? (
+          {accountsLoading ? (
             <p className="placeholder">Loading...</p>
           ) : accounts.length === 0 ? (
             <p className="placeholder">No accounts connected yet.</p>
