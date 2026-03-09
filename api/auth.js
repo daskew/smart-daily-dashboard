@@ -29,8 +29,9 @@ export default async function handler(req, res) {
   }
 
   // Get the path without /api/auth prefix
-  const path = req.url || '/';
-  const action = path.replace(/^\//, '').replace(/\/$/, '');
+  const fullPath = req.url || '/';
+  // Extract the action (e.g., /register -> register, /login -> login)
+  const action = fullPath.split('/').filter(Boolean).pop() || '';
   
   // Parse body for POST
   let body = {};
